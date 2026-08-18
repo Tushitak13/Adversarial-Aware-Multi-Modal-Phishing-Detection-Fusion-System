@@ -3,7 +3,8 @@ from detectors.url.features import check_typosquatting
 from detectors.url.features import check_homoglyph
 from detectors.url.features import check_ssl
 from detectors.url.features import check_redirects
-
+from detectors.url.features import check_domain_age
+from detectors.url.detector import analyze_url
 
 
 def test_extract_domain():
@@ -64,3 +65,43 @@ def test_redirect_detection():
     assert result["redirect_count"] is not None
     assert result["final_url"] is not None
     assert isinstance(result["redirect_chain"], list)
+
+
+def test_domain_age_success():
+    result = check_domain_age("google.com")
+
+    assert "lookup_success" in result
+    assert "risk_score" in result
+
+    if result["lookup_success"]:
+        assert result["age_days"] is not None
+        assert result["age_days"] >= 0
+
+
+def test_domain_age_failure_is_graceful():
+    result = check_domain_age(
+        "this-domain-definitely-does-not-exist-123456789.com"
+    )
+
+    assert "lookup_success" in result
+    assert "risk_score" in result
+
+
+def test_analyze_url_returns_standard_contract():
+    result = analyze_url("https://example.com")
+
+    assert result["detector_name"] == "url"
+    assert 0.0 <= result["score"] <= 1.0
+    assert 0.0 <= result["confidence"] <= 1.0
+    assert isinstance(result["raw_features"], dict)
+    assert isinstance(result["latency_ms"], int)
+
+
+def test_analyze_url_detects_typosquatting():
+    result = analyze_url("https://paypa1.com")
+
+    assert result["detector_name"] == "url"
+
+    # The URL should receive some phishing risk
+    # because of the typosquatting signal.
+    assert result["score"] > 0.0

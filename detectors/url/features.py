@@ -321,4 +321,83 @@ def check_redirects(url: str):
             "risk_score": 0.5,
             "error": str(error)
         }
-    
+
+
+import whois
+from datetime import datetime, timezone
+
+
+def check_domain_age(domain: str):
+    """
+    Look up the domain registration date using WHOIS.
+
+    Returns:
+        registration_date
+        age_days
+        risk_score
+        lookup_success
+    """
+
+    try:
+        whois_data = whois.whois(domain)
+
+        creation_date = whois_data.creation_date
+
+        # Some WHOIS servers return multiple creation dates.
+        if isinstance(creation_date, list):
+            creation_date = creation_date[0]
+
+        if creation_date is None:
+            return {
+                "registration_date": None,
+                "age_days": None,
+                "risk_score": 0.5,
+                "lookup_success": False
+            }
+
+        # Convert naive datetime to UTC.
+        if creation_date.tzinfo is None:
+            creation_date = creation_date.replace(
+                tzinfo=timezone.utc
+            )
+
+        now = datetime.now(timezone.utc)
+
+        age_days = (now - creation_date).days
+
+        # Initial simple scoring:
+        #
+        # Very new domains are more suspicious.
+        # Older domains receive lower risk.
+
+        if age_days < 7:
+            risk_score = 0.9
+
+        elif age_days < 30:
+            risk_score = 0.7
+
+        elif age_days < 180:
+            risk_score = 0.4
+
+        elif age_days < 365:
+            risk_score = 0.2
+
+        else:
+            risk_score = 0.0
+
+        return {
+            "registration_date": creation_date.isoformat(),
+            "age_days": age_days,
+            "risk_score": risk_score,
+            "lookup_success": True
+        }
+
+    except Exception as error:
+        # WHOIS lookup failures should NOT crash the detector.
+        return {
+            "registration_date": None,
+            "age_days": None,
+            "risk_score": 0.5,
+            "lookup_success": False,
+            "error": str(error)
+        }
