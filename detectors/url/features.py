@@ -103,3 +103,158 @@ def test_typosquatting_accepts_legitimate_domain():
 
     assert result["suspicious"] is False
     assert result["distance"] == 0
+
+
+
+import unicodedata
+
+
+def check_homoglyph(domain: str):
+    """
+    Detect potentially suspicious Unicode characters in a domain.
+
+    ASCII domain characters are treated as normal.
+    Non-ASCII characters are inspected to determine whether
+    they may be visually similar to common Latin characters.
+    """
+
+    suspicious_characters = []
+
+    for char in domain:
+        # Normal ASCII characters are not homoglyphs.
+        if ord(char) < 128:
+            continue
+
+        character_name = unicodedata.name(char, "")
+
+        # Look for Unicode characters from scripts commonly
+        # involved in visually deceptive domain names.
+        suspicious_scripts = [
+            "CYRILLIC",
+            "GREEK",
+            "ARMENIAN",
+            "HEBREW"
+        ]
+
+        if any(script in character_name for script in suspicious_scripts):
+            suspicious_characters.append({
+                "character": char,
+                "unicode_name": character_name,
+                "codepoint": f"U+{ord(char):04X}"
+            })
+
+    suspicious = len(suspicious_characters) > 0
+
+    if suspicious:
+        risk_score = 0.9
+    else:
+        risk_score = 0.0
+
+    return {
+        "suspicious": suspicious,
+        "detected_characters": suspicious_characters,
+        "risk_score": risk_score
+    }
+
+
+import socket
+import ssl
+from datetime import datetime, timezone
+
+
+def check_ssl(url: str):
+    """
+    Check basic SSL/TLS certificate information for a URL.
+
+    Returns:
+        HTTPS status
+        certificate validity
+        certificate expiry information
+        certificate issuer/subject
+        risk score
+    """
+
+    parsed = urlparse(url)
+
+    # SSL/TLS only applies to HTTPS URLs.
+    if parsed.scheme.lower() != "https":
+        return {
+            "https": False,
+            "certificate_valid": False,
+            "certificate_expired": False,
+            "issuer": None,
+            "subject": None,
+            "risk_score": 0.8
+        }
+
+    hostname = parsed.hostname
+
+    if hostname is None:
+        return {
+            "https": True,
+            "certificate_valid": False,
+            "certificate_expired": False,
+            "issuer": None,
+            "subject": None,
+            "risk_score": 0.8
+        }
+
+    context = ssl.create_default_context()
+
+    try:
+        with socket.create_connection(
+            (hostname, 443),
+            timeout=5
+        ) as sock:
+
+            with context.wrap_socket(
+                sock,
+                server_hostname=hostname
+            ) as secure_socket:
+
+                certificate = secure_socket.getpeercert()
+
+        # If we successfully reached this point,
+        # Python's default SSL verification succeeded.
+        certificate_valid = True
+
+        expiry_string = certificate.get("notAfter")
+
+        certificate_expired = False
+
+        if expiry_string:
+            expiry_date = datetime.strptime(
+                expiry_string,
+                "%b %d %H:%M:%S %Y %Z"
+            ).replace(tzinfo=timezone.utc)
+
+            certificate_expired = (
+                expiry_date < datetime.now(timezone.utc)
+            )
+
+        issuer = certificate.get("issuer")
+        subject = certificate.get("subject")
+
+        if certificate_expired:
+            risk_score = 0.8
+        else:
+            risk_score = 0.0
+
+        return {
+            "https": True,
+            "certificate_valid": certificate_valid,
+            "certificate_expired": certificate_expired,
+            "issuer": issuer,
+            "subject": subject,
+            "risk_score": risk_score
+        }
+
+    except (socket.timeout, socket.gaierror, ssl.SSLError, OSError):
+        return {
+            "https": True,
+            "certificate_valid": False,
+            "certificate_expired": False,
+            "issuer": None,
+            "subject": None,
+            "risk_score": 0.7
+        }
