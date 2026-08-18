@@ -2,6 +2,9 @@ from detectors.url.features import extract_domain
 from detectors.url.features import check_typosquatting
 from detectors.url.features import check_homoglyph
 from detectors.url.features import check_ssl
+from detectors.url.features import check_redirects
+
+
 
 def test_extract_domain():
     url = "https://www.paypal.com/login"
@@ -53,3 +56,11 @@ def test_ssl_detects_non_https():
     result = check_ssl("http://example.com")
 
     assert result["https"] is False
+
+
+def test_redirect_detection():
+    result = check_redirects("https://example.com")
+
+    assert result["redirect_count"] is not None
+    assert result["final_url"] is not None
+    assert isinstance(result["redirect_chain"], list)

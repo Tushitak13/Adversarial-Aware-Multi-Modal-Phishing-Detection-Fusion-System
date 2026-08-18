@@ -258,3 +258,67 @@ def check_ssl(url: str):
             "subject": None,
             "risk_score": 0.7
         }
+
+
+
+import requests
+
+
+def check_redirects(url: str):
+    """
+    Follow HTTP redirects and measure the redirect chain depth.
+
+    Returns:
+        redirect_count: number of redirects encountered
+        final_url: final destination after redirects
+        redirect_chain: URLs visited during the process
+        risk_score: normalized risk score
+    """
+
+    try:
+        response = requests.get(
+            url,
+            timeout=10,
+            allow_redirects=True,
+            headers={
+                "User-Agent": "Mozilla/5.0"
+            }
+        )
+
+        redirect_chain = [
+            history.url for history in response.history
+        ]
+
+        redirect_chain.append(response.url)
+
+        redirect_count = len(response.history)
+
+        # Simple initial scoring.
+        if redirect_count == 0:
+            risk_score = 0.0
+
+        elif redirect_count <= 2:
+            risk_score = 0.2
+
+        elif redirect_count <= 4:
+            risk_score = 0.5
+
+        else:
+            risk_score = 0.8
+
+        return {
+            "redirect_count": redirect_count,
+            "final_url": response.url,
+            "redirect_chain": redirect_chain,
+            "risk_score": risk_score
+        }
+
+    except requests.RequestException as error:
+        return {
+            "redirect_count": None,
+            "final_url": None,
+            "redirect_chain": [],
+            "risk_score": 0.5,
+            "error": str(error)
+        }
+    
