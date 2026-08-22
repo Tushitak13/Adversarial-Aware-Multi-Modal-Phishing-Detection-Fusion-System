@@ -4,6 +4,8 @@ from detectors.url.features import (
 )
 from detectors.url.features import check_homoglyph
 from detectors.url.features import check_ssl
+from detectors.url.features import check_redirects
+from detectors.url.features import check_domain_age
 
 
 def test_extract_domain():
@@ -53,3 +55,30 @@ def test_ssl_http():
 
     assert result["https"] is False
 
+def test_redirect_detection():
+    result = check_redirects("https://example.com")
+
+    assert result["redirect_count"] is not None
+    assert result["final_url"] is not None
+    assert isinstance(result["redirect_chain"], list)
+    assert 0.0 <= result["risk_score"] <= 1.0
+
+def test_domain_age():
+    result = check_domain_age("google.com")
+
+    assert "lookup_success" in result
+    assert "risk_score" in result
+
+    if result["lookup_success"]:
+        assert result["age_days"] is not None
+        assert result["age_days"] >= 0
+
+
+def test_domain_age_failure_is_graceful():
+    result = check_domain_age(
+        "this-domain-definitely-does-not-exist-123456789.com"
+    )
+
+    assert "lookup_success" in result
+    assert "risk_score" in result
+    assert 0.0 <= result["risk_score"] <= 1.0

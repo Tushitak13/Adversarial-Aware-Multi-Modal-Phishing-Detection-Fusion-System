@@ -4,7 +4,8 @@ from urllib.parse import urlparse
 import socket
 import ssl
 from datetime import datetime, timezone
-
+import requests
+import whois
 
 # Load legitimate brand domains
 BRAND_LIST_PATH = Path(__file__).parent / "brand_list.json"
@@ -209,4 +210,121 @@ def check_ssl(url: str) -> dict:
             "certificate_expired": False,
             "issuer": None,
             "risk_score": 0.7
+        }
+
+def check_redirects(url: str) -> dict:
+    """
+    Follow redirects and measure the redirect chain depth.
+    """
+
+    try:
+        response = requests.get(
+            url,
+            timeout=10,
+            allow_redirects=True,
+            headers={
+                "User-Agent": "Mozilla/5.0"
+            }
+        )
+
+        redirect_count = len(response.history)
+
+        redirect_chain = [
+            history.url
+            for history in response.history
+        ]
+
+        redirect_chain.append(response.url)
+
+        if redirect_count == 0:
+            risk_score = 0.0
+        elif redirect_count <= 2:
+            risk_score = 0.2
+        elif redirect_count <= 4:
+            risk_score = 0.5
+        else:
+            risk_score = 0.8
+
+        return {
+            "redirect_count": redirect_count,
+            "final_url": response.url,
+            "redirect_chain": redirect_chain,
+            "risk_score": risk_score
+        }
+
+    except requests.RequestException as error:
+        return {
+            "redirect_count": None,
+            "final_url": None,
+            "redirect_chain": [],
+            "risk_score": 0.5,
+            "error": str(error)
+        }
+
+def check_domain_age(domain: str) -> dict:
+    """
+    Look up the domain registration date using WHOIS.
+
+    If WHOIS information is unavailable, return a safe
+    fallback instead of crashing the detector.
+    """
+
+    try:
+        whois_data = whois.whois(domain)
+
+        creation_date = whois_data.creation_date
+
+        # Some WHOIS servers return multiple creation dates.
+        if isinstance(creation_date, list):
+            creation_date = creation_date[0]
+
+        if creation_date is None:
+            return {
+                "registration_date": None,
+                "age_days": None,
+                "risk_score": 0.5,
+                "lookup_success": False
+            }
+
+        # Convert a timezone-naive datetime to UTC.
+        if creation_date.tzinfo is None:
+            creation_date = creation_date.replace(
+                tzinfo=timezone.utc
+            )
+
+        now = datetime.now(timezone.utc)
+
+        age_days = (now - creation_date).days
+
+        # New domains are generally more suspicious.
+        if age_days < 7:
+            risk_score = 0.9
+
+        elif age_days < 30:
+            risk_score = 0.7
+
+        elif age_days < 180:
+            risk_score = 0.4
+
+        elif age_days < 365:
+            risk_score = 0.2
+
+        else:
+            risk_score = 0.0
+
+        return {
+            "registration_date": creation_date.isoformat(),
+            "age_days": age_days,
+            "risk_score": risk_score,
+            "lookup_success": True
+        }
+
+    except Exception as error:
+        # WHOIS failure must not crash the detector.
+        return {
+            "registration_date": None,
+            "age_days": None,
+            "risk_score": 0.5,
+            "lookup_success": False,
+            "error": str(error)
         }
