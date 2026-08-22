@@ -94,3 +94,35 @@ def check_typosquatting(domain: str) -> dict:
         "distance": best_distance,
         "risk_score": risk_score
     }
+
+def check_homoglyph(domain: str) -> dict:
+    """
+    Detect suspicious Unicode characters that can visually
+    resemble normal Latin characters.
+    """
+
+    suspicious_characters = []
+
+    for char in domain:
+
+        # ASCII characters are not homoglyphs.
+        if ord(char) < 128:
+            continue
+
+        suspicious_characters.append({
+            "character": char,
+            "codepoint": f"U+{ord(char):04X}"
+        })
+
+    suspicious = len(suspicious_characters) > 0
+
+    if suspicious:
+        risk_score = 0.9
+    else:
+        risk_score = 0.0
+
+    return {
+        "suspicious": suspicious,
+        "detected_characters": suspicious_characters,
+        "risk_score": risk_score
+    }
