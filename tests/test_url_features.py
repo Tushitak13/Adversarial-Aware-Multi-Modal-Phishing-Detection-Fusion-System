@@ -3,6 +3,8 @@ from detectors.url.features import (
     check_typosquatting
 )
 from detectors.url.features import check_homoglyph
+from detectors.url.features import check_ssl
+
 
 def test_extract_domain():
     result = extract_domain(
@@ -39,3 +41,15 @@ def test_normal_ascii_domain_has_no_homoglyph():
 
     assert result["suspicious"] is False
     assert result["detected_characters"] == []
+
+def test_ssl_https():
+    result = check_ssl("https://example.com")
+
+    assert result["https"] is True
+
+
+def test_ssl_http():
+    result = check_ssl("http://example.com")
+
+    assert result["https"] is False
+

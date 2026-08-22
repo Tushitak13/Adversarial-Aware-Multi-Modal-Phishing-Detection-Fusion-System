@@ -1,6 +1,9 @@
 import json
 from pathlib import Path
 from urllib.parse import urlparse
+import socket
+import ssl
+from datetime import datetime, timezone
 
 
 # Load legitimate brand domains
@@ -126,3 +129,84 @@ def check_homoglyph(domain: str) -> dict:
         "detected_characters": suspicious_characters,
         "risk_score": risk_score
     }
+
+
+def check_ssl(url: str) -> dict:
+    """
+    Check basic SSL/TLS certificate information.
+    """
+
+    parsed = urlparse(url)
+
+    if parsed.scheme.lower() != "https":
+        return {
+            "https": False,
+            "certificate_valid": False,
+            "certificate_expired": False,
+            "issuer": None,
+            "risk_score": 0.8
+        }
+
+    hostname = parsed.hostname
+
+    if hostname is None:
+        return {
+            "https": True,
+            "certificate_valid": False,
+            "certificate_expired": False,
+            "issuer": None,
+            "risk_score": 0.8
+        }
+
+    context = ssl.create_default_context()
+
+    try:
+        with socket.create_connection(
+            (hostname, 443),
+            timeout=5
+        ) as sock:
+
+            with context.wrap_socket(
+                sock,
+                server_hostname=hostname
+            ) as secure_socket:
+
+                certificate = secure_socket.getpeercert()
+
+        expiry_string = certificate.get("notAfter")
+
+        certificate_expired = False
+
+        if expiry_string:
+            expiry_date = datetime.strptime(
+                expiry_string,
+                "%b %d %H:%M:%S %Y %Z"
+            ).replace(tzinfo=timezone.utc)
+
+            certificate_expired = (
+                expiry_date < datetime.now(timezone.utc)
+            )
+
+        issuer = certificate.get("issuer")
+
+        if certificate_expired:
+            risk_score = 0.8
+        else:
+            risk_score = 0.0
+
+        return {
+            "https": True,
+            "certificate_valid": True,
+            "certificate_expired": certificate_expired,
+            "issuer": issuer,
+            "risk_score": risk_score
+        }
+
+    except (socket.timeout, socket.gaierror, ssl.SSLError, OSError):
+        return {
+            "https": True,
+            "certificate_valid": False,
+            "certificate_expired": False,
+            "issuer": None,
+            "risk_score": 0.7
+        }
