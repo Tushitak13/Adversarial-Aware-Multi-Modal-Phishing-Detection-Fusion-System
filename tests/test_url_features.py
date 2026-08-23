@@ -6,6 +6,9 @@ from detectors.url.features import check_homoglyph
 from detectors.url.features import check_ssl
 from detectors.url.features import check_redirects
 from detectors.url.features import check_domain_age
+from detectors.url.detector import analyze_url
+from detectors.url.features import analyze_url_structure
+
 
 
 def test_extract_domain():
@@ -82,3 +85,41 @@ def test_domain_age_failure_is_graceful():
     assert "lookup_success" in result
     assert "risk_score" in result
     assert 0.0 <= result["risk_score"] <= 1.0
+
+def test_analyze_url_returns_standard_contract():
+    result = analyze_url("https://example.com")
+
+    assert result["detector_name"] == "url"
+    assert 0.0 <= result["score"] <= 1.0
+    assert 0.0 <= result["confidence"] <= 1.0
+    assert isinstance(result["raw_features"], dict)
+    assert isinstance(result["latency_ms"], int)
+
+
+def test_analyze_url_detects_typosquatting():
+    result = analyze_url("https://paypa1.com")
+
+    assert result["detector_name"] == "url"
+    assert result["score"] > 0.0
+
+def test_url_structure():
+    result = analyze_url_structure(
+        "https://login.paypal.com:8080/account/login?user=test"
+    )
+
+    assert result["scheme"] == "https"
+    assert result["hostname"] == "login.paypal.com"
+    assert result["registered_domain"] == "paypal.com"
+    assert result["subdomain"] == "login"
+    assert result["port"] == 8080
+    assert result["path"] == "/account/login"
+    assert result["query"] == "user=test"
+
+
+def test_registered_domain_prevents_subdomain_confusion():
+    result = analyze_url_structure(
+        "https://paypal.com.evil.com/login"
+    )
+
+    assert result["registered_domain"] == "evil.com"
+    assert "paypal.com" in result["subdomain"]

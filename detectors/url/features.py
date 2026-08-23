@@ -6,6 +6,7 @@ import ssl
 from datetime import datetime, timezone
 import requests
 import whois
+import tldextract
 
 # Load legitimate brand domains
 BRAND_LIST_PATH = Path(__file__).parent / "brand_list.json"
@@ -328,3 +329,40 @@ def check_domain_age(domain: str) -> dict:
             "lookup_success": False,
             "error": str(error)
         }
+
+def analyze_url_structure(url: str) -> dict:
+    """
+    Extract the structural components of a URL.
+
+    Returns:
+        scheme
+        hostname
+        registered_domain
+        subdomain
+        port
+        path
+        query
+    """
+
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
+
+    parsed = urlparse(url)
+
+    if not parsed.hostname:
+        raise ValueError("Invalid URL")
+
+    extracted = tldextract.extract(parsed.hostname)
+
+    registered_domain = extracted.registered_domain
+    subdomain = extracted.subdomain
+
+    return {
+        "scheme": parsed.scheme.lower(),
+        "hostname": parsed.hostname.lower(),
+        "registered_domain": registered_domain.lower(),
+        "subdomain": subdomain.lower(),
+        "port": parsed.port,
+        "path": parsed.path,
+        "query": parsed.query
+    }
