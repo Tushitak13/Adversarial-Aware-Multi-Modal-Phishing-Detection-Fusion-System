@@ -9,7 +9,7 @@ from detectors.url.features import check_domain_age
 from detectors.url.detector import analyze_url
 from detectors.url.features import analyze_url_structure
 from detectors.url.features import check_ip_address
-
+from detectors.url.features import check_at_symbol
 
 def test_extract_domain():
     result = extract_domain(
@@ -145,3 +145,22 @@ def test_ipv6_address_detected():
 
     assert result["is_ip"] is True
     assert result["version"] == 6
+
+def test_at_symbol_attack_detected():
+    result = check_at_symbol(
+        "https://paypal.com@evil.com/login"
+    )
+
+    assert result["has_at_symbol"] is True
+    assert result["userinfo"] == "paypal.com"
+    assert result["risk_score"] > 0
+
+
+def test_normal_url_has_no_at_symbol():
+    result = check_at_symbol(
+        "https://paypal.com/login"
+    )
+
+    assert result["has_at_symbol"] is False
+    assert result["userinfo"] is None
+    assert result["risk_score"] == 0.0

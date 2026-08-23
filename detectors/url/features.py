@@ -390,3 +390,30 @@ def check_ip_address(domain: str) -> dict:
             "version": None,
             "risk_score": 0.0
         }
+
+def check_at_symbol(url: str) -> dict:
+    """
+    Detect the use of '@' in a URL.
+
+    In URLs such as:
+        https://paypal.com@evil.com/login
+
+    the actual destination is evil.com.
+    """
+
+    parsed = urlparse(url)
+
+    has_at_symbol = "@" in url
+
+    if has_at_symbol:
+        risk_score = 0.8
+    else:
+        risk_score = 0.0
+
+    return {
+        "has_at_symbol": has_at_symbol,
+        "userinfo": parsed.username,
+        "risk_score": risk_score
+    }
+
+
