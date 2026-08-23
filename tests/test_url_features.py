@@ -8,7 +8,7 @@ from detectors.url.features import check_redirects
 from detectors.url.features import check_domain_age
 from detectors.url.detector import analyze_url
 from detectors.url.features import analyze_url_structure
-
+from detectors.url.features import check_ip_address
 
 
 def test_extract_domain():
@@ -123,3 +123,25 @@ def test_registered_domain_prevents_subdomain_confusion():
 
     assert result["registered_domain"] == "evil.com"
     assert "paypal.com" in result["subdomain"]
+
+def test_ip_address_detected():
+    result = check_ip_address("192.168.1.50")
+
+    assert result["is_ip"] is True
+    assert result["version"] == 4
+    assert result["risk_score"] > 0
+
+
+def test_normal_domain_is_not_ip():
+    result = check_ip_address("paypal.com")
+
+    assert result["is_ip"] is False
+    assert result["version"] is None
+    assert result["risk_score"] == 0.0
+
+
+def test_ipv6_address_detected():
+    result = check_ip_address("2001:db8::1")
+
+    assert result["is_ip"] is True
+    assert result["version"] == 6

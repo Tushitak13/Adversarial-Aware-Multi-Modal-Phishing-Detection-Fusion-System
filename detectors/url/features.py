@@ -366,3 +366,27 @@ def analyze_url_structure(url: str) -> dict:
         "path": parsed.path,
         "query": parsed.query
     }
+
+import ipaddress
+
+
+def check_ip_address(domain: str) -> dict:
+    """
+    Check whether the hostname is an IPv4 or IPv6 address.
+    """
+
+    try:
+        ipaddress.ip_address(domain)
+
+        return {
+            "is_ip": True,
+            "version": ipaddress.ip_address(domain).version,
+            "risk_score": 0.7
+        }
+
+    except ValueError:
+        return {
+            "is_ip": False,
+            "version": None,
+            "risk_score": 0.0
+        }
