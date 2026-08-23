@@ -417,3 +417,24 @@ def check_at_symbol(url: str) -> dict:
     }
 
 
+def check_punycode(domain: str) -> dict:
+    """
+    Detect Punycode-encoded domain labels.
+
+    Punycode labels use the 'xn--' prefix.
+    """
+
+    labels = domain.lower().split(".")
+
+    punycode_labels = [
+        label for label in labels
+        if label.startswith("xn--")
+    ]
+
+    suspicious = len(punycode_labels) > 0
+
+    return {
+        "suspicious": suspicious,
+        "punycode_labels": punycode_labels,
+        "risk_score": 0.7 if suspicious else 0.0
+    }

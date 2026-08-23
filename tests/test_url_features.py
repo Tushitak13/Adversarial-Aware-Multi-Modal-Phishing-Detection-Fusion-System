@@ -10,6 +10,9 @@ from detectors.url.detector import analyze_url
 from detectors.url.features import analyze_url_structure
 from detectors.url.features import check_ip_address
 from detectors.url.features import check_at_symbol
+from detectors.url.features import check_punycode
+
+
 
 def test_extract_domain():
     result = extract_domain(
@@ -163,4 +166,22 @@ def test_normal_url_has_no_at_symbol():
 
     assert result["has_at_symbol"] is False
     assert result["userinfo"] is None
+    assert result["risk_score"] == 0.0
+
+
+def test_punycode_detected():
+    result = check_punycode(
+        "xn--80ak6aa92e.com"
+    )
+
+    assert result["suspicious"] is True
+    assert "xn--80ak6aa92e" in result["punycode_labels"]
+    assert result["risk_score"] > 0
+
+
+def test_normal_domain_has_no_punycode():
+    result = check_punycode("paypal.com")
+
+    assert result["suspicious"] is False
+    assert result["punycode_labels"] == []
     assert result["risk_score"] == 0.0
